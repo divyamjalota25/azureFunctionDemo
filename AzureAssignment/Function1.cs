@@ -15,6 +15,7 @@ using Microsoft.Azure.Management.DataFactory.Models;
 using Newtonsoft.Json.Linq;
 using System.Collections.Generic;
 using Azure.Storage.Blobs;
+using JsonLogic.Net;
 
 namespace AzureAssignment
 {
@@ -25,7 +26,7 @@ namespace AzureAssignment
             [HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = null)] HttpRequest req,
             ILogger log)
         {
-            string connectionString = @"DefaultEndpointsProtocol=https;AccountName=assignmentyoda;AccountKey=A1TGgaPfmigb0mZZIBg1jNPcDmfJPNdN9j9Q4+VgVMWA7H5sJMJrUtRyTBUJCzZnfC4xKJsv6PHJ+AStMUVz7Q==;EndpointSuffix=core.windows.net";
+            string connectionString = @"BlobEndpoint=https://assignmentyoda.blob.core.windows.net/;SharedAccessSignature=sv=2021-06-08&ss=bfqt&srt=sco&sp=rwdlacupiytfx&se=2022-07-21T03:20:18Z&st=2022-07-20T19:20:18Z&spr=https&sig=WkGvh7Y7v57it8DrDBoQjdo0BfkNBDxP51NpeDUXsxQ%3D";
 
             string blobName = "output";
 
@@ -38,8 +39,31 @@ namespace AzureAssignment
             BlobClient blob = container.GetBlobClient(blobName);
 
             // Download file to a given path from Azure storage
-            string downloadPath = @"C:\Users\Divyam Jalota\source\repos\AzureAssignment\AzureAssignment";
+            string downloadPath = Path.Combine(Path.GetTempPath(), blobName);
             var response = await blob.DownloadToAsync(downloadPath);
+
+            string line;
+            List<Employee> employeeList = new List<Employee>();
+            var evaluator = new JsonLogicEvaluator(EvaluateOperators.Default);
+            string jsonText = """{ "if" : [{">" : [ { "var" : "SALARY" }, 4000 ]} ,true, false] } """;
+            var rule = JObject.Parse(jsonText);
+            StreamReader sr = new StreamReader(downloadPath);
+            while ((line = sr.ReadLine()) != null) {
+                //string[] words = line.Split(':');
+                Employee employee = JsonConvert.DeserializeObject<Employee>(line);
+                string data  =JsonConvert.SerializeObject(employee);
+                var finalData = JObject.Parse(data);
+                object result = evaluator.Apply(rule, finalData);
+                if (result.ToString()=="True") {
+                    employeeList.Add(employee);
+                }
+            }
+            sr.Close();
+            //foreach (Employee employee in employeeList)
+            //{
+            //    Console.WriteLine(employee.SALARY);
+            //}
+
 
 
             return new OkObjectResult("ok");
